@@ -55,6 +55,28 @@ Each skill follows a standardized directory structure:
 
 ## Common Development Tasks
 
+### Environment, Tests, and Lint
+
+Dependencies are managed with `uv` (Python >=3.11 for the dev env; skill sources stay Python 3.9-compatible, ruff `target-version = "py39"`, line length 100).
+
+```bash
+uv sync --extra dev                                   # install runtime + dev deps (also needed in every fresh git worktree)
+uv run pytest -q                                      # full suite (pytest uses --import-mode=importlib; paths listed in pyproject.toml testpaths)
+uv run pytest skills/position-sizer/scripts/tests -q  # one skill's tests
+uv run pytest skills/position-sizer/scripts/tests/test_x.py::test_name -q   # single test
+bash scripts/run_all_tests.sh                         # per-skill isolated runs via scripts/ci_test_matrix.py = pre-push/CI gate
+uv run ruff check . && uv run ruff format .           # lint + format
+pre-commit run --all-files                            # every commit hook
+```
+
+New skill tests live in `skills/<name>/scripts/tests/`; add the path to `testpaths` in `pyproject.toml` if it should run in the single-invocation suite. CI test discovery/coverage policy is in `config/ci-test-policy.yaml`.
+
+### Single Source of Truth and Drift Gates
+
+`skills-index.yaml` (skill metadata, integrations, production `verification`), `workflows/*.yaml`, and `skillsets/*.yaml` are authoritative. READMEs, catalogs, the API table above, and `docs/{en,ja}/skills/*.md` (when `generated: true`) are derived and checked by `--check` drift hooks/CI. Edit the source, then re-run the matching generator (`scripts/generate_catalog_from_index.py`, `generate_skill_docs.py`, `generate_workflow_docs.py`, `generate_skillset_docs.py`); validators include `validate_skills_index.py`, `validate_skillsets.py`, `check_skill_catalog.py`. See [`docs/dev/maintenance-runbook.md`](docs/dev/maintenance-runbook.md) for the full list.
+
+Skills are packaged standalone (`scripts/package_skills.py`), so each must import cleanly with only its own `requirements.txt` (`scripts/check_isolated_skill_imports.py`). Shared code is therefore vendored into each skill, not imported: `skills/<skill>/scripts/fmp_client.py` is generated from `scripts/fmp_client/` by `scripts/generate_fmp_client.py`, and the market-calendar consumers by `scripts/generate_market_calendar.py`. Edit the canonical source and regenerate (both support `--check`); never hand-edit the vendored copies.
+
 ### Creating a New Skill
 
 Use the skill-creator plugin (available in Claude Code):
